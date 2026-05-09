@@ -1,9 +1,24 @@
-/.metadata/
+# Compiled output - ignore in ALL services
+**/target/
 
-# Environment files
-.env
+# Eclipse IDE files - ignore in ALL services
+**/.settings/
+**/.classpath
+**/.factorypath
+**/.project
+.metadata/
 
-# Spring profiles
-**/application-dev.yml
+# IntelliJ IDEA
+**/.idea/
+**/*.iml
 
-scripts
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+**/*.log
+
+# Secrets - VERY IMPORTANT
+**/application-prod.yml
+**/application-secrets.yml
