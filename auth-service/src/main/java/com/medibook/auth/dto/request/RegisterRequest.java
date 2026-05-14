@@ -1,0 +1,32 @@
+package com.medibook.auth.dto.request;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class RegisterRequest {
+
+    @NotBlank(message = "Full name is required")
+    private String fullName;   // frontend sends "fullName" → matches directly, no @JsonProperty needed
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Valid email is required")
+    private String email;
+
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, message = "Password must be at least 6 characters")
+    private String password;
+
+    private String phone;
+
+    @NotBlank(message = "Role is required")
+    @Pattern(
+        regexp = "Patient|Provider",
+        message = "Role must be Patient or Provider"
+    )
+    private String role;
+}
