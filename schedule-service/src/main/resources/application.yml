@@ -1,22 +1,20 @@
 server:
-  port: 8083
- 
+  port: ${PORT:8083}
+
 spring:
   application:
     name: schedule-service
-  
   boot:
     admin:
       client:
-        url: http://localhost:8761  # points to eureka server
- 
-  # ── MySQL ──────────────────────────────────────────────────────────────────
+        url: ${BOOT_ADMIN_URL:http://localhost:8761}
+        username: ${BOOT_ADMIN_USERNAME:admin}
+        password: ${BOOT_ADMIN_PASSWORD:medibook123}
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/schedule_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:medibook_user}
     password: ${DB_PASSWORD:medibook_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
- 
   jpa:
     hibernate:
       ddl-auto: update
@@ -25,21 +23,17 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
- 
   thymeleaf:
     check-template-location: false
-
   security:
     user:
       name: none
- 
-# ── JWT config (must match auth-service secret exactly) ───────────────────
+
 medibook:
   jwt:
     secret: ${JWT_SECRET}
     expiration: 86400000
- 
-# ── Eureka Client ──────────────────────────────────────────────────────────
+
 eureka:
   client:
     service-url:
@@ -48,15 +42,14 @@ eureka:
     register-with-eureka: ${EUREKA_REGISTER_WITH_EUREKA:true}
   instance:
     prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:true}
- 
-# ── Actuator ──────────────────────────────────────────────────────────────
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:${HOSTNAME:localhost}}
+
 management:
   endpoints:
     web:
       exposure:
         include: health, info, metrics
- 
-# ── Swagger ──────────────────────────────────────────────────────────────
+
 springdoc:
   api-docs:
     path: /api-docs
@@ -64,4 +57,4 @@ springdoc:
     path: /swagger-ui.html
     operationsSorter: method
     try-it-out-enabled: true
- 
+
