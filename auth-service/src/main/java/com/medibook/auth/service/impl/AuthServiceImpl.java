@@ -2,6 +2,7 @@ package com.medibook.auth.service.impl;
 
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,6 +21,7 @@ import com.medibook.auth.exception.UnauthorizedException;
 import com.medibook.auth.repository.PasswordResetTokenRepository;
 import com.medibook.auth.repository.UserRepository;
 import com.medibook.auth.security.JwtUtil;
+import com.medibook.auth.security.TokenBlacklistService;
 import com.medibook.auth.service.AuthService;
 import com.medibook.otp.service.OtpService;
 
@@ -35,17 +37,26 @@ public class AuthServiceImpl implements AuthService {
     private final OtpService otpService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final JavaMailSender mailSender;
+    private final TokenBlacklistService tokenBlacklistService;
+    private String frontendBaseUrl = "http://localhost:5173";
 
     public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder,
                            JwtUtil jwtUtil, OtpService otpService,
                            PasswordResetTokenRepository passwordResetTokenRepository,
-                           JavaMailSender mailSender) {
+                           JavaMailSender mailSender,
+                           TokenBlacklistService tokenBlacklistService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.otpService = otpService;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.mailSender = mailSender;
+        this.tokenBlacklistService = tokenBlacklistService;
+    }
+
+    @Value("${app.frontend.base-url:http://localhost:5173}")
+    public void setFrontendBaseUrl(String frontendBaseUrl) {
+        this.frontendBaseUrl = normalizeBaseUrl(frontendBaseUrl);
     }
 
     //  register()
@@ -134,7 +145,7 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.save(admin);
     }
 
-    // Google OAuth2 — find existing user or create new one with chosen role
+    // Google OAuth2 â€” find existing user or create new one with chosen role
     @Override
     public User findOrCreateGoogleUser(String email, String fullName,
                                        String picture, String provider, String role) {
@@ -142,7 +153,7 @@ public class AuthServiceImpl implements AuthService {
         // If user already exists (e.g. came back and picked role again) just return them
         return userRepository.findByEmail(email).orElseGet(() -> {
 
-            // Validate role — only Patient or Provider allowed via Google
+            // Validate role â€” only Patient or Provider allowed via Google
             if (!role.equals("Patient") && !role.equals("Provider")) {
                 throw new BadRequestException("Invalid role selected. Must be Patient or Provider.");
             }
@@ -155,6 +166,7 @@ public class AuthServiceImpl implements AuthService {
                     .role(role)               // role chosen by user on select-role page
                     .provider(provider)       // "google"
                     .isActive(true)
+                    .verified(true)
                     .profilePicUrl(picture)
                     .build();
 
@@ -165,20 +177,23 @@ public class AuthServiceImpl implements AuthService {
     // logout()
     @Override
     public void logout(String token) {
-        // Stateless JWT — client discards token
-        // Production: add token to Redis blacklist
+        if (!jwtUtil.validateToken(token)) {
+            return;
+        }
+
+        tokenBlacklistService.blacklistToken(token, jwtUtil.extractExpiration(token));
     }
 
     // validateToken()
     @Override
     public boolean validateToken(String token) {
-        return jwtUtil.validateToken(token);
+        return jwtUtil.validateToken(token) && !tokenBlacklistService.isBlacklisted(token);
     }
 
     //  refreshToken()
     @Override
     public String refreshToken(String token) {
-        if (!jwtUtil.validateToken(token)) {
+        if (!validateToken(token)) {
         	throw new UnauthorizedException(
         		    "Invalid or expired token. Please login again."
         		);
@@ -220,7 +235,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void changePassword(int userId, String newPassword) {
         
-        // find user — throws ResourceNotFoundException if not found
+        // find user â€” throws ResourceNotFoundException if not found
         User user = getUserById(userId);
         
         // validate new password is not empty
@@ -252,19 +267,19 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
     }
 
-    // getAllUsers() — Admin: fetch every user in the system
+    // getAllUsers() â€” Admin: fetch every user in the system
     @Override
     public java.util.List<User> getAllUsers() {
         return userRepository.findAll();
     }
 
-    // getUsersByRole() — Admin: filter users by role
+    // getUsersByRole() â€” Admin: filter users by role
     @Override
     public java.util.List<User> getUsersByRole(String role) {
         return userRepository.findAllByRole(role);
     }
 
-    // reactivateAccount() — Admin: re-enable a deactivated user
+    // reactivateAccount() â€” Admin: re-enable a deactivated user
     @Override
     public void reactivateAccount(int userId) {
         User user = getUserById(userId);
@@ -274,19 +289,19 @@ public class AuthServiceImpl implements AuthService {
     
    
 
-    // sendOtp() — delegates to OtpService
+    // sendOtp() â€” delegates to OtpService
     @Override
     public void sendOtp(String email) {
         otpService.generateAndSendOtp(email);
     }
 
-    // verifyOtp() — delegates to OtpService
+    // verifyOtp() â€” delegates to OtpService
     @Override
     public boolean verifyOtp(String email, String otp) {
         return otpService.verifyOtp(email, otp);
     }
     
- // forgotPassword() — generate token + OTP, send email, print in console
+ // forgotPassword() â€” generate token + OTP, send email, print in console
     @Override
     public void forgotPassword(String email) {
 
@@ -314,13 +329,13 @@ public class AuthServiceImpl implements AuthService {
         passwordResetTokenRepository.save(resetToken);
 
         // Build reset link
-        String resetLink = "http://localhost:5173/reset-password?token=" + token;
+        String resetLink = buildFrontendUrl("/reset-password") + "?token=" + token;
 
-        // ── Send email ─────────────────────────────────────────────────
+        // â”€â”€ Send email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(email);
-            message.setSubject("MediBook — Reset Your Password");
+            message.setSubject("MediBook â€” Reset Your Password");
             message.setText(
                 "Hello " + user.getFullName() + ",\n\n" +
                 "You requested to reset your MediBook password.\n\n" +
@@ -329,7 +344,7 @@ public class AuthServiceImpl implements AuthService {
                 "Your OTP verification code: " + otp + "\n\n" +
                 "This link and OTP are valid for 15 minutes only.\n" +
                 "If you did not request this, please ignore this email.\n\n" +
-                "— MediBook Team"
+                "â€” MediBook Team"
             );
             mailSender.send(message);
             System.out.println("[AuthService] Reset email sent to: " + email);
@@ -337,7 +352,7 @@ public class AuthServiceImpl implements AuthService {
             System.err.println("[AuthService] Email sending failed: " + e.getMessage());
         }
 
-        // ── Print in console for testing ───────────────────────────────
+        // â”€â”€ Print in console for testing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         System.out.println("========================================");
         System.out.println("  MediBook Password Reset");
         System.out.println("  Email : " + email);
@@ -348,7 +363,7 @@ public class AuthServiceImpl implements AuthService {
         System.out.println("========================================");
     }
 
-    // verifyResetOtp() — validate token + OTP before allowing password reset
+    // verifyResetOtp() â€” validate token + OTP before allowing password reset
     @Override
     public void verifyResetOtp(String token, String otp) {
 
@@ -375,12 +390,12 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Invalid OTP. Please try again.");
         }
 
-        // OTP verified — mark token as verified (not used yet, used after password set)
+        // OTP verified â€” mark token as verified (not used yet, used after password set)
         resetToken.setUsed(false);
         passwordResetTokenRepository.save(resetToken);
     }
 
-    // resetPassword() — save new password after OTP verified
+    // resetPassword() â€” save new password after OTP verified
     @Override
     public void resetPassword(String token, String newPassword) {
 
@@ -417,5 +432,16 @@ public class AuthServiceImpl implements AuthService {
         passwordResetTokenRepository.delete(resetToken);
 
         System.out.println("[AuthService] Password reset successful for: " + resetToken.getEmail());
+    }
+
+    private String buildFrontendUrl(String path) {
+        return normalizeBaseUrl(frontendBaseUrl) + path;
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return "http://localhost:5173";
+        }
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }
 }

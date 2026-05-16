@@ -2,6 +2,8 @@ package com.medibook.auth.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,16 @@ class JwtUtilTest {
     void extractUserId_correct() {
         String token = jwtUtil.generateToken("admin@test.com", "Admin", 99);
         assertThat(jwtUtil.extractUserId(token)).isEqualTo(99);
+    }
+
+    @Test
+    @DisplayName("extractExpiration: returns a future expiration instant")
+    void extractExpiration_futureDate() {
+        String token = jwtUtil.generateToken("user@test.com", "Patient", 42);
+
+        Instant expiration = jwtUtil.extractExpiration(token);
+
+        assertThat(expiration).isAfter(Instant.now());
     }
 
     @Test

@@ -230,7 +230,9 @@ public class AuthResource {
                 KEY_TOKEN, token,
                 KEY_USER_ID, user.getUserId(),
                 "role",     user.getRole(),
-                KEY_FULL_NAME, user.getFullName()
+                KEY_FULL_NAME, user.getFullName(),
+                KEY_EMAIL, user.getEmail(),
+                KEY_MESSAGE, "Google login successful"
         ));
     }
 

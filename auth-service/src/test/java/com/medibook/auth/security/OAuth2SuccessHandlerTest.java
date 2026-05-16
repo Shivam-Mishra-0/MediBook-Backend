@@ -26,7 +26,6 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import com.medibook.auth.entity.User;
 import com.medibook.auth.repository.UserRepository;
-import com.medibook.otp.service.OtpService;
 
 @ExtendWith(MockitoExtension.class)
 class OAuth2SuccessHandlerTest {
@@ -36,9 +35,6 @@ class OAuth2SuccessHandlerTest {
 
     @Mock
     private JwtUtil jwtUtil;
-
-    @Mock
-    private OtpService otpService;
 
     @InjectMocks
     private OAuth2SuccessHandler successHandler;
@@ -80,8 +76,8 @@ class OAuth2SuccessHandlerTest {
     }
 
     @Test
-    @DisplayName("existing unverified Google users are redirected to OTP")
-    void existingUnverifiedUserRedirectsToOtp() throws IOException {
+    @DisplayName("existing unverified Google users are verified and redirected with a JWT")
+    void existingUnverifiedUserRedirectsToCallback() throws IOException {
         User existingUser = User.builder()
                 .userId(10)
                 .email("otp@test.com")
@@ -92,6 +88,8 @@ class OAuth2SuccessHandlerTest {
                 .build();
 
         when(userRepository.findByEmail("otp@test.com")).thenReturn(Optional.of(existingUser));
+        when(userRepository.save(existingUser)).thenReturn(existingUser);
+        when(jwtUtil.generateToken("otp@test.com", "Provider", 10)).thenReturn("jwt-for-google-user");
 
         successHandler.onAuthenticationSuccess(
                 request,
@@ -99,10 +97,11 @@ class OAuth2SuccessHandlerTest {
                 authentication("otp@test.com", "OTP User", "http://pic")
         );
 
-        verify(otpService).generateAndSendOtp("otp@test.com");
-        assertThat(response.getRedirectedUrl()).contains("/otp");
+        verify(userRepository).save(existingUser);
+        assertThat(existingUser.isVerified()).isTrue();
+        assertThat(response.getRedirectedUrl()).contains("/oauth2/callback");
+        assertThat(response.getRedirectedUrl()).contains("token=jwt-for-google-user");
         assertThat(response.getRedirectedUrl()).contains("email=otp%40test.com");
-        assertThat(response.getRedirectedUrl()).contains("source=google");
     }
 
     @Test

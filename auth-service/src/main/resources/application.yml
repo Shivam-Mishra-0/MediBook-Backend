@@ -1,22 +1,21 @@
 server:
-  port: 8081
+  port: ${PORT:8081}
   forward-headers-strategy: framework
 
 spring:
   application:
     name: auth-service
-  
   boot:
     admin:
       client:
-        url: http://localhost:8761  # points to eureka server
-
+        url: ${BOOT_ADMIN_URL:http://localhost:8761}
+        username: ${BOOT_ADMIN_USERNAME:admin}
+        password: ${BOOT_ADMIN_PASSWORD:medibook123}
   datasource:
-    url: jdbc:mysql://localhost:3306/auth_db?createDatabaseIfNotExist=true
+    url: ${DB_URL:jdbc:mysql://localhost:3306/auth_db?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:medibook_user}
     password: ${DB_PASSWORD:medibook_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -25,12 +24,19 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2s}
+      repositories:
+        enabled: false
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}        # ← PUT YOUR GMAIL HERE
-    password: ${MAIL_PASSWORD}        # ← PUT APP PASSWORD HERE (not Gmail password)
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -40,7 +46,6 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
-
   security:
     oauth2:
       client:
@@ -56,19 +61,21 @@ spring:
 app:
   admin:
     secret:
-      code: AdminSecret2024!
+      code: ${ADMIN_SECRET_CODE:AdminSecret2024!}
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:86400000}       # 24 hours in ms
+  expiration: ${JWT_EXPIRATION:86400000}
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE:http://admin:medibook123@localhost:8761/eureka/}
   instance:
-    prefer-ip-address: true
-    hostname: localhost
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:true}
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:${HOSTNAME:localhost}}
     instance-id: ${spring.application.name}:${server.port}
 
 springdoc:
@@ -78,3 +85,4 @@ springdoc:
     try-it-out-enabled: true
   api-docs:
     path: /api-docs
+

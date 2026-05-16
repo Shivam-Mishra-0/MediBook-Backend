@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.time.Instant;
 import java.util.Date;
 
 @Component
@@ -48,6 +49,10 @@ public class JwtUtil {
     // Extract userId from token
     public int extractUserId(String token) {
         return ((Number) getClaims(token).get("userId")).intValue();
+    }
+
+    public Instant extractExpiration(String token) {
+        return getClaims(token).getExpiration().toInstant();
     }
 
     // PDF: validateToken()

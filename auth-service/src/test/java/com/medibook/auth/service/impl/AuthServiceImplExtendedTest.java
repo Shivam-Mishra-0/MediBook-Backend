@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +40,7 @@ import com.medibook.auth.exception.UnauthorizedException;
 import com.medibook.auth.repository.PasswordResetTokenRepository;
 import com.medibook.auth.repository.UserRepository;
 import com.medibook.auth.security.JwtUtil;
+import com.medibook.auth.security.TokenBlacklistService;
 import com.medibook.otp.service.OtpService;
 
 /**
@@ -58,6 +60,7 @@ class AuthServiceImplExtendedTest {
     @Mock private OtpService                   otpService;
     @Mock private PasswordResetTokenRepository passwordResetTokenRepository;
     @Mock private JavaMailSender               mailSender;
+    @Mock private TokenBlacklistService        tokenBlacklistService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -167,10 +170,25 @@ class AuthServiceImplExtendedTest {
     /* ── logout() ───────────────────────────────────────────────── */
 
     @Test
-    @DisplayName("logout: completes without throwing (stateless JWT)")
-    void logout_noOp() {
-        // Should not throw
+    @DisplayName("logout: blacklists a valid token until it expires")
+    void logout_blacklistsValidToken() {
+        Instant expiresAt = Instant.now().plusSeconds(120);
+        when(jwtUtil.validateToken("some.jwt.token")).thenReturn(true);
+        when(jwtUtil.extractExpiration("some.jwt.token")).thenReturn(expiresAt);
+
         authService.logout("some.jwt.token");
+
+        verify(tokenBlacklistService).blacklistToken("some.jwt.token", expiresAt);
+    }
+
+    @Test
+    @DisplayName("logout: ignores invalid tokens")
+    void logout_invalidTokenIgnored() {
+        when(jwtUtil.validateToken("bad.token")).thenReturn(false);
+
+        authService.logout("bad.token");
+
+        verify(tokenBlacklistService, never()).blacklistToken(anyString(), any());
     }
 
     /* ── validateToken() ────────────────────────────────────────── */
@@ -179,6 +197,7 @@ class AuthServiceImplExtendedTest {
     @DisplayName("validateToken: returns true for valid token")
     void validateToken_valid() {
         when(jwtUtil.validateToken("valid.token")).thenReturn(true);
+        when(tokenBlacklistService.isBlacklisted("valid.token")).thenReturn(false);
         assertThat(authService.validateToken("valid.token")).isTrue();
     }
 
@@ -189,12 +208,22 @@ class AuthServiceImplExtendedTest {
         assertThat(authService.validateToken("bad.token")).isFalse();
     }
 
+    @Test
+    @DisplayName("validateToken: returns false for blacklisted token")
+    void validateToken_blacklisted() {
+        when(jwtUtil.validateToken("valid.token")).thenReturn(true);
+        when(tokenBlacklistService.isBlacklisted("valid.token")).thenReturn(true);
+
+        assertThat(authService.validateToken("valid.token")).isFalse();
+    }
+
     /* ── refreshToken() ─────────────────────────────────────────── */
 
     @Test
     @DisplayName("refreshToken: returns new token for valid token")
     void refreshToken_success() {
         when(jwtUtil.validateToken("old.token")).thenReturn(true);
+        when(tokenBlacklistService.isBlacklisted("old.token")).thenReturn(false);
         when(jwtUtil.extractEmail("old.token")).thenReturn("riya@medibook.com");
         when(jwtUtil.extractRole("old.token")).thenReturn("Patient");
         when(jwtUtil.extractUserId("old.token")).thenReturn(1);
@@ -211,6 +240,17 @@ class AuthServiceImplExtendedTest {
         when(jwtUtil.validateToken("bad.token")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.refreshToken("bad.token"))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("Invalid or expired token");
+    }
+
+    @Test
+    @DisplayName("refreshToken: throws UnauthorizedException for blacklisted token")
+    void refreshToken_blacklisted() {
+        when(jwtUtil.validateToken("old.token")).thenReturn(true);
+        when(tokenBlacklistService.isBlacklisted("old.token")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.refreshToken("old.token"))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessageContaining("Invalid or expired token");
     }

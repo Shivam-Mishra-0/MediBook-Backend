@@ -29,6 +29,9 @@ class JwtFilterTest {
     private JwtUtil jwtUtil;
 
     @Mock
+    private TokenBlacklistService tokenBlacklistService;
+
+    @Mock
     private FilterChain filterChain;
 
     @InjectMocks
@@ -86,6 +89,7 @@ class JwtFilterTest {
     void doFilterWithValidToken() throws ServletException, IOException {
         request.addHeader("Authorization", "Bearer valid-token");
         when(jwtUtil.validateToken("valid-token")).thenReturn(true);
+        when(tokenBlacklistService.isBlacklisted("valid-token")).thenReturn(false);
         when(jwtUtil.extractEmail("valid-token")).thenReturn("doctor@test.com");
         when(jwtUtil.extractRole("valid-token")).thenReturn("Provider");
 
@@ -96,6 +100,19 @@ class JwtFilterTest {
         assertThat(authentication.getPrincipal()).isEqualTo("doctor@test.com");
         assertThat(authentication.getAuthorities()).extracting("authority").containsExactly("ROLE_Provider");
         assertThat(authentication.getDetails()).isNotNull();
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("filter ignores blacklisted JWTs")
+    void doFilterWithBlacklistedToken() throws ServletException, IOException {
+        request.addHeader("Authorization", "Bearer valid-token");
+        when(jwtUtil.validateToken("valid-token")).thenReturn(true);
+        when(tokenBlacklistService.isBlacklisted("valid-token")).thenReturn(true);
+
+        jwtFilter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(filterChain).doFilter(request, response);
     }
 }
