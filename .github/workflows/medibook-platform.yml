@@ -59,7 +59,7 @@ jobs:
         run: npm run build
 
   sonarqube:
-    if: github.event_name != 'pull_request' && secrets.SONAR_HOST_URL != '' && secrets.SONAR_TOKEN != ''
+    if: github.event_name != 'pull_request' && vars.ENABLE_SONARQUBE == 'true'
     needs:
       - backend-tests
     runs-on: ubuntu-latest
@@ -141,7 +141,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   deploy-ec2:
-    if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master') && secrets.EC2_HOST != '' && secrets.EC2_USERNAME != '' && secrets.EC2_SSH_KEY != '' && secrets.EC2_APP_DIR != '' && secrets.EC2_PUBLIC_IP != '' && secrets.GHCR_TOKEN != ''
+    if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master') && vars.ENABLE_EC2_DEPLOY == 'true'
     needs:
       - docker-images
     runs-on: ubuntu-latest
@@ -221,7 +221,6 @@ jobs:
             ADMIN_SECRET_CODE=${{ secrets.ADMIN_SECRET_CODE }}
             ADMIN_PASSWORD_1=${{ secrets.ADMIN_PASSWORD_1 }}
             ADMIN_PASSWORD_2=${{ secrets.ADMIN_PASSWORD_2 }}
-            ENABLE_SONARQUBE=${{ vars.ENABLE_SONARQUBE }}
             SONARQUBE_JDBC_USERNAME=${{ secrets.SONARQUBE_JDBC_USERNAME }}
             SONARQUBE_JDBC_PASSWORD=${{ secrets.SONARQUBE_JDBC_PASSWORD }}
             SONARQUBE_JDBC_DATABASE=sonarqube
