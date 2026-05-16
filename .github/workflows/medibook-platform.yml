@@ -1,0 +1,233 @@
+name: MediBook Platform
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: medibook-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MediBook_Backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run backend tests
+        run: mvn -B -ntp clean verify
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MediBook_Frontend/medibook-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: MediBook_Frontend/medibook-frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm run test:run
+
+      - name: Build frontend
+        run: npm run build
+
+  sonarqube:
+    if: github.event_name != 'pull_request' && secrets.SONAR_HOST_URL != '' && secrets.SONAR_TOKEN != ''
+    needs:
+      - backend-tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MediBook_Backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: SonarQube analysis
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+        run: >
+          mvn -B -ntp clean verify sonar:sonar
+          -Dsonar.host.url="${SONAR_HOST_URL}"
+          -Dsonar.token="${SONAR_TOKEN}"
+          -Dsonar.projectKey="${SONAR_PROJECT_KEY:-medibook-backend}"
+
+  docker-images:
+    if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master' || github.event_name == 'workflow_dispatch')
+    needs:
+      - backend-tests
+      - frontend-tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - eureka-server
+          - api-gateway
+          - auth-service
+          - provider-service
+          - schedule-service
+          - appointment-service
+          - payment-service
+          - review-service
+          - notification-service
+          - record-service
+          - admin-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Normalize repository owner
+        id: prep
+        shell: bash
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ./MediBook_Backend
+          file: ./MediBook_Backend/Dockerfile.service
+          push: true
+          build-args: |
+            MODULE=${{ matrix.service }}
+          tags: |
+            ghcr.io/${{ steps.prep.outputs.owner }}/medibook-${{ matrix.service }}:sha-${{ github.sha }}
+            ghcr.io/${{ steps.prep.outputs.owner }}/medibook-${{ matrix.service }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy-ec2:
+    if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master') && secrets.EC2_HOST != '' && secrets.EC2_USERNAME != '' && secrets.EC2_SSH_KEY != '' && secrets.EC2_APP_DIR != '' && secrets.EC2_PUBLIC_IP != '' && secrets.GHCR_TOKEN != ''
+    needs:
+      - docker-images
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Normalize repository owner
+        id: prep
+        shell: bash
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Prepare EC2 app directory
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: mkdir -p '${{ secrets.EC2_APP_DIR }}'
+
+      - name: Upload deployment bundle
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "MediBook_Backend/docker-compose.yml,MediBook_Backend/Dockerfile.service,MediBook_Backend/docker,MediBook_Backend/deploy/ec2/deploy.sh"
+          target: ${{ secrets.EC2_APP_DIR }}
+          strip_components: 1
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            APP_DIR='${{ secrets.EC2_APP_DIR }}'
+            cat > "${APP_DIR}/.env" <<EOF
+            IMAGE_REPOSITORY_OWNER=${{ steps.prep.outputs.owner }}
+            IMAGE_TAG=latest
+            MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRATION=86400000
+            EUREKA_USERNAME=admin
+            EUREKA_PASSWORD=${{ secrets.EUREKA_PASSWORD }}
+            EUREKA_DEFAULT_ZONE=http://admin:${{ secrets.EUREKA_PASSWORD }}@eureka-server:8761/eureka/
+            BOOT_ADMIN_URL=http://eureka-server:8761
+            BOOT_ADMIN_USERNAME=admin
+            BOOT_ADMIN_PASSWORD=${{ secrets.EUREKA_PASSWORD }}
+            FRONTEND_BASE_URL=http://${{ secrets.EC2_PUBLIC_IP }}.nip.io
+            GATEWAY_ALLOWED_ORIGIN_PATTERN_1=http://localhost:[*]
+            GATEWAY_ALLOWED_ORIGIN_PATTERN_2=http://127.0.0.1:[*]
+            GATEWAY_ALLOWED_ORIGIN_PATTERN_3=http://*.nip.io:[*]
+            GATEWAY_ALLOWED_ORIGIN_PATTERN_4=https://*.nip.io:[*]
+            REDIS_HOST=redis
+            REDIS_PORT=6379
+            REDIS_PASSWORD=
+            REDIS_TIMEOUT=2s
+            RABBITMQ_DEFAULT_USER=guest
+            RABBITMQ_DEFAULT_PASS=guest
+            RABBITMQ_HOST=rabbitmq
+            RABBITMQ_PORT=5672
+            RABBITMQ_USERNAME=guest
+            RABBITMQ_PASSWORD=guest
+            MAIL_HOST=smtp.gmail.com
+            MAIL_PORT=587
+            MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+            MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            RAZORPAY_API_KEY=${{ secrets.RAZORPAY_API_KEY }}
+            RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
+            ADMIN_SECRET_CODE=${{ secrets.ADMIN_SECRET_CODE }}
+            ADMIN_PASSWORD_1=${{ secrets.ADMIN_PASSWORD_1 }}
+            ADMIN_PASSWORD_2=${{ secrets.ADMIN_PASSWORD_2 }}
+            ENABLE_SONARQUBE=${{ vars.ENABLE_SONARQUBE }}
+            SONARQUBE_JDBC_USERNAME=${{ secrets.SONARQUBE_JDBC_USERNAME }}
+            SONARQUBE_JDBC_PASSWORD=${{ secrets.SONARQUBE_JDBC_PASSWORD }}
+            SONARQUBE_JDBC_DATABASE=sonarqube
+            EOF
+
+            echo '${{ secrets.GHCR_TOKEN }}' | docker login ghcr.io -u '${{ steps.prep.outputs.owner }}' --password-stdin
+            chmod +x "${APP_DIR}/deploy/ec2/deploy.sh"
+            "${APP_DIR}/deploy/ec2/deploy.sh"
+            docker logout ghcr.io

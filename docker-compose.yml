@@ -1,0 +1,410 @@
+name: medibook
+
+x-common-service: &common-service
+  restart: unless-stopped
+  networks:
+    - medibook-network
+
+x-microservice-env: &microservice-env
+  DB_USERNAME: ${DB_USERNAME:-medibook_user}
+  DB_PASSWORD: ${DB_PASSWORD:-medibook_pass}
+  JWT_SECRET: ${JWT_SECRET:-MediBookSuperSecretKey2024MustBeAtLeast256BitsLong!!}
+  JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+  EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://admin:medibook123@eureka-server:8761/eureka/}
+  BOOT_ADMIN_URL: ${BOOT_ADMIN_URL:-http://eureka-server:8761}
+  BOOT_ADMIN_USERNAME: ${BOOT_ADMIN_USERNAME:-admin}
+  BOOT_ADMIN_PASSWORD: ${BOOT_ADMIN_PASSWORD:-medibook123}
+
+services:
+  mysql:
+    <<: *common-service
+    image: mysql:8.0
+    container_name: medibook-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-medibook_root_pass}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init/01-create-databases.sql:/docker-entrypoint-initdb.d/01-create-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    <<: *common-service
+    image: redis:7-alpine
+    container_name: medibook-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    <<: *common-service
+    image: rabbitmq:4-management
+    container_name: medibook-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: "30s"
+      timeout: "30s"
+      retries: 15
+      start_period: "60s"
+
+  eureka-server:
+    <<: *common-service
+    container_name: medibook-eureka-server
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-eureka-server:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: eureka-server
+    environment:
+      PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME:-admin}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD:-medibook123}
+      EUREKA_INSTANCE_HOSTNAME: ${EUREKA_INSTANCE_HOSTNAME:-eureka-server}
+    ports:
+      - "8761:8761"
+
+  api-gateway:
+    <<: *common-service
+    container_name: medibook-api-gateway
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-api-gateway:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: api-gateway
+    depends_on:
+      eureka-server:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    environment:
+      <<: *microservice-env
+      PORT: 8080
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2s}
+      GATEWAY_ALLOWED_ORIGIN_PATTERN_1: ${GATEWAY_ALLOWED_ORIGIN_PATTERN_1:-http://localhost:[*]}
+      GATEWAY_ALLOWED_ORIGIN_PATTERN_2: ${GATEWAY_ALLOWED_ORIGIN_PATTERN_2:-http://127.0.0.1:[*]}
+      GATEWAY_ALLOWED_ORIGIN_PATTERN_3: ${GATEWAY_ALLOWED_ORIGIN_PATTERN_3:-http://*.nip.io:[*]}
+      GATEWAY_ALLOWED_ORIGIN_PATTERN_4: ${GATEWAY_ALLOWED_ORIGIN_PATTERN_4:-https://*.nip.io:[*]}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    <<: *common-service
+    container_name: medibook-frontend
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ../MediBook_Frontend/medibook-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        VITE_RAZORPAY_KEY: ${VITE_RAZORPAY_KEY:-}
+    depends_on:
+      api-gateway:
+        condition: service_started
+      auth-service:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+
+  auth-service:
+    <<: *common-service
+    container_name: medibook-auth-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-auth-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: auth-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8081
+      DB_URL: jdbc:mysql://mysql:3306/auth_db?createDatabaseIfNotExist=true
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2s}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      ADMIN_SECRET_CODE: ${ADMIN_SECRET_CODE:-AdminSecret2024!}
+    ports:
+      - "8081:8081"
+
+  provider-service:
+    <<: *common-service
+    container_name: medibook-provider-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-provider-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: provider-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8082
+      DB_URL: jdbc:mysql://mysql:3306/provider_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    ports:
+      - "8082:8082"
+
+  schedule-service:
+    <<: *common-service
+    container_name: medibook-schedule-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-schedule-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: schedule-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8083
+      DB_URL: jdbc:mysql://mysql:3306/schedule_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    ports:
+      - "8083:8083"
+
+  appointment-service:
+    <<: *common-service
+    container_name: medibook-appointment-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-appointment-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: appointment-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8084
+      DB_URL: jdbc:mysql://mysql:3306/appointment_db?createDatabaseIfNotExist=true
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "8084:8084"
+
+  payment-service:
+    <<: *common-service
+    container_name: medibook-payment-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-payment-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: payment-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8085
+      DB_URL: jdbc:mysql://mysql:3306/payment_db?createDatabaseIfNotExist=true
+      RAZORPAY_API_KEY: ${RAZORPAY_API_KEY:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+    ports:
+      - "8085:8085"
+
+  review-service:
+    <<: *common-service
+    container_name: medibook-review-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-review-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: review-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8086
+      DB_URL: jdbc:mysql://mysql:3306/review_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    ports:
+      - "8086:8086"
+
+  notification-service:
+    <<: *common-service
+    container_name: medibook-notification-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-notification-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: notification-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8087
+      DB_URL: jdbc:mysql://mysql:3306/notification_db?createDatabaseIfNotExist=true
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "8087:8087"
+
+  record-service:
+    <<: *common-service
+    container_name: medibook-record-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-record-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: record-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 8088
+      DB_URL: jdbc:mysql://mysql:3306/record_db?createDatabaseIfNotExist=true
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+    ports:
+      - "8088:8088"
+
+  admin-service:
+    <<: *common-service
+    container_name: medibook-admin-service
+    image: ghcr.io/${IMAGE_REPOSITORY_OWNER:-medibook}/medibook-admin-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args:
+        MODULE: admin-service
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *microservice-env
+      PORT: 9090
+      DB_URL: jdbc:mysql://mysql:3306/auth_db?createDatabaseIfNotExist=true
+      ADMIN_PASSWORD_1: ${ADMIN_PASSWORD_1:-ChangeMeAdmin#1}
+      ADMIN_PASSWORD_2: ${ADMIN_PASSWORD_2:-ChangeMeAdmin#2}
+    ports:
+      - "9090:9090"
+
+  sonarqube-db:
+    <<: *common-service
+    image: postgres:16-alpine
+    container_name: medibook-sonarqube-db
+    profiles: ["tools"]
+    environment:
+      POSTGRES_USER: ${SONARQUBE_JDBC_USERNAME:-sonarqube}
+      POSTGRES_PASSWORD: ${SONARQUBE_JDBC_PASSWORD:-sonarqube}
+      POSTGRES_DB: ${SONARQUBE_JDBC_DATABASE:-sonarqube}
+    volumes:
+      - sonarqube_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  sonarqube:
+    <<: *common-service
+    image: sonarqube:lts-community
+    container_name: medibook-sonarqube
+    profiles: ["tools"]
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/${SONARQUBE_JDBC_DATABASE:-sonarqube}
+      SONAR_JDBC_USERNAME: ${SONARQUBE_JDBC_USERNAME:-sonarqube}
+      SONAR_JDBC_PASSWORD: ${SONARQUBE_JDBC_PASSWORD:-sonarqube}
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+networks:
+  medibook-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonarqube_postgres_data:

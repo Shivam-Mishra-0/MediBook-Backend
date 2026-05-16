@@ -1,0 +1,20 @@
+FROM maven:3.9.8-eclipse-temurin-17 AS builder
+
+ARG MODULE
+WORKDIR /workspace
+
+COPY . .
+
+RUN mvn -B -ntp -pl ${MODULE} -am clean package -DskipTests
+
+FROM eclipse-temurin:17-jre-jammy
+
+ARG MODULE
+WORKDIR /app
+
+COPY --from=builder /workspace/${MODULE}/target/${MODULE}-*.jar /app/app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
