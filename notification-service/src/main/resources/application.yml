@@ -1,21 +1,20 @@
 server:
-  port: 8087
+  port: ${PORT:8087}
 
 spring:
   application:
     name: notification-service
-  
   boot:
     admin:
       client:
-        url: http://localhost:8761  # points to eureka server
-
+        url: ${BOOT_ADMIN_URL:http://localhost:8761}
+        username: ${BOOT_ADMIN_USERNAME:admin}
+        password: ${BOOT_ADMIN_PASSWORD:medibook123}
   datasource:
-    url: jdbc:mysql://localhost:3306/notification_db?createDatabaseIfNotExist=true
+    url: ${DB_URL:jdbc:mysql://localhost:3306/notification_db?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:medibook_user}
     password: ${DB_PASSWORD:medibook_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -24,35 +23,34 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}        # ← PUT YOUR GMAIL HERE
-    password: ${MAIL_PASSWORD}        # ← PUT APP PASSWORD HERE (not Gmail password)
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
-
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000
+  expiration: ${JWT_EXPIRATION:86400000}
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE:http://admin:medibook123@localhost:8761/eureka/}
   instance:
-    prefer-ip-address: true
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:true}
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:${HOSTNAME:localhost}}
 
 notification:
   email:
@@ -67,3 +65,4 @@ springdoc:
     try-it-out-enabled: true
   api-docs:
     path: /api-docs
+
