@@ -1,21 +1,20 @@
 server:
-  port: 8084
+  port: ${PORT:8084}
 
 spring:
   application:
     name: appointment-service
-
   boot:
     admin:
       client:
-        url: http://localhost:8761  # points to eureka server
-
+        url: ${BOOT_ADMIN_URL:http://localhost:8761}
+        username: ${BOOT_ADMIN_USERNAME:admin}
+        password: ${BOOT_ADMIN_PASSWORD:medibook123}
   datasource:
-    url: jdbc:mysql://localhost:3306/appointment_db?createDatabaseIfNotExist=true
+    url: ${DB_URL:jdbc:mysql://localhost:3306/appointment_db?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:medibook_user}
     password: ${DB_PASSWORD:medibook_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -24,12 +23,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
 springdoc:
   swagger-ui:
@@ -41,11 +39,13 @@ springdoc:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000
+  expiration: ${JWT_EXPIRATION:86400000}
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE:http://admin:medibook123@localhost:8761/eureka/}
   instance:
-    prefer-ip-address: true
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:true}
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:${HOSTNAME:localhost}}
+
