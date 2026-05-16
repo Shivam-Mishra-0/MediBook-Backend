@@ -1,21 +1,20 @@
 server:
-  port: 8085
+  port: ${PORT:8085}
 
 spring:
   application:
     name: payment-service
-
   boot:
     admin:
       client:
-        url: http://localhost:8761
-
+        url: ${BOOT_ADMIN_URL:http://localhost:8761}
+        username: ${BOOT_ADMIN_USERNAME:admin}
+        password: ${BOOT_ADMIN_PASSWORD:medibook123}
   datasource:
-    url: jdbc:mysql://localhost:3306/payment_db?createDatabaseIfNotExist=true
+    url: ${DB_URL:jdbc:mysql://localhost:3306/payment_db?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:medibook_user}
     password: ${DB_PASSWORD:medibook_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -27,24 +26,21 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000
+  expiration: ${JWT_EXPIRATION:86400000}
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE:http://admin:medibook123@localhost:8761/eureka/}
   instance:
-    prefer-ip-address: true
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:true}
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:${HOSTNAME:localhost}}
 
 razorpay:
   key:
-    # ✅ FIX: Changed from ${RAZORPAY-API-KEY} and ${RAZORPAY-KEY-SECRET}
-    # Windows environment variables use UNDERSCORES not hyphens.
-    # Your system env vars are: RAZORPAY_API_KEY and RAZORPAY_KEY_SECRET
     id: ${RAZORPAY_API_KEY}
     secret: ${RAZORPAY_KEY_SECRET}
   currency: INR
-  
 
 springdoc:
   swagger-ui:
@@ -53,3 +49,4 @@ springdoc:
     try-it-out-enabled: true
   api-docs:
     path: /api-docs
+
