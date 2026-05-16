@@ -1,22 +1,20 @@
 server:
-  port: 9090
+  port: ${PORT:9090}
 
 spring:
   application:
     name: admin-service
-
   boot:
     admin:
       client:
-        url: http://localhost:8761  # points to eureka server
-
-  # ── Shared auth_db (same DB as auth-service so admins can log in via /auth/login) ──
+        url: ${BOOT_ADMIN_URL:http://localhost:8761}
+        username: ${BOOT_ADMIN_USERNAME:admin}
+        password: ${BOOT_ADMIN_PASSWORD:medibook123}
   datasource:
-    url: jdbc:mysql://localhost:3306/auth_db?createDatabaseIfNotExist=true
+    url: ${DB_URL:jdbc:mysql://localhost:3306/auth_db?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:medibook_user}
     password: ${DB_PASSWORD:medibook_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -26,30 +24,26 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
 
-# ── Pre-configured admins (seeded automatically at startup) ─────────────────
-# Add as many admins as you want under this list.
-# The service will auto-register each one if they don't already exist in the DB.
 app:
   admins:
     - fullName: Shivam Mishra
       email: cy.shivam.m@gmail.com
-      password: ${ADMIN_PASSWORD-1}
-
+      password: ${ADMIN_PASSWORD_1:ChangeMeAdmin#1}
     - fullName: Medibook
       email: help.medibook.grp@gmail.com
-      password: ${ADMIN_PASSWORD-2}
+      password: ${ADMIN_PASSWORD_2:ChangeMeAdmin#2}
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:86400000}   # 24 hours in ms
+  expiration: ${JWT_EXPIRATION:86400000}
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE:http://admin:medibook123@localhost:8761/eureka/}
   instance:
-    prefer-ip-address: true
-    hostname: localhost
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:true}
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:${HOSTNAME:localhost}}
     instance-id: ${spring.application.name}:${server.port}
 
 springdoc:
@@ -59,4 +53,3 @@ springdoc:
     try-it-out-enabled: true
   api-docs:
     path: /api-docs
-
