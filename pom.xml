@@ -12,6 +12,7 @@
 	<description>MediBook Online Appointment Booking System - Parent POM</description>
 
 	<modules>
+		<module>medibook-common</module>
 		<module>eureka-server</module>       <!-- START THIS FIRST -->
 		<module>api-gateway</module>         <!-- START THIS SECOND -->
 		<module>auth-service</module>
@@ -23,8 +24,6 @@
 		<module>notification-service</module>
 		<module>record-service</module>
 		<module>admin-service</module>
-		<module>payment-gateway-service</module>
-		<module>medibook-web</module>
 	</modules>
 
 	<parent>
@@ -40,6 +39,10 @@
 		<jjwt.version>0.11.5</jjwt.version>
 		<mapstruct.version>1.5.5.Final</mapstruct.version>
 		<lombok.version>1.18.30</lombok.version>
+		<jacoco.version>0.8.12</jacoco.version>
+		<sonar-maven-plugin.version>3.11.0.3922</sonar-maven-plugin.version>
+		<sonar.coverage.jacoco.xmlReportPaths>**/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+		<sonar.scm.disabled>true</sonar.scm.disabled>
 	</properties>
 
 	<dependencyManagement>
@@ -78,6 +81,13 @@
 	</dependencies>
 
 	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.sonarsource.scanner.maven</groupId>
+				<artifactId>sonar-maven-plugin</artifactId>
+				<version>${sonar-maven-plugin.version}</version>
+			</plugin>
+		</plugins>
 		<pluginManagement>
 			<plugins>
 				<plugin>
