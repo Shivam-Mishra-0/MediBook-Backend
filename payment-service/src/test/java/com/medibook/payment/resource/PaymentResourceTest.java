@@ -245,31 +245,51 @@ class PaymentResourceTest {
     // getRevenueByProvider()
     // ═══════════════════════════════════════════════════════════════════════
     @Nested
-    @DisplayName("getRevenueByProvider()")
+    @DisplayName("GET /payments/revenue/provider/{providerId}")
     class GetRevenueByProviderTests {
 
         @Test
-        @DisplayName("returns revenue sum for given providerId")
-        void returnsRevenue() {
-            when(paymentRepository.calculateRevenueByProvider(10)).thenReturn(8500.0);
+        @DisplayName("returns 200 OK with revenue map for given providerId")
+        void getRevenueByProvider_returns200() {
+            when(paymentService.getRevenueByProvider(5)).thenReturn(8500.0);
 
-            assertThat(paymentService.getRevenueByProvider(10)).isEqualTo(8500.0);
+            ResponseEntity<?> response = controller.getRevenueByProvider(5);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = (Map<String, Object>) response.getBody();
+            assertThat(body.get("providerId")).isEqualTo(5);
+            assertThat(body.get("providerRevenue")).isEqualTo(8500.0);
+            assertThat(body.get("currency")).isEqualTo("INR");
         }
 
         @Test
-        @DisplayName("returns 0.0 when repository returns null")
-        void nullResult_returnsZero() {
-            when(paymentRepository.calculateRevenueByProvider(99)).thenReturn(null);
+        @DisplayName("returns 200 OK with zero revenue when no payments exist")
+        void getRevenueByProvider_zeroRevenue() {
+            when(paymentService.getRevenueByProvider(99)).thenReturn(0.0);
 
-            assertThat(paymentService.getRevenueByProvider(99)).isEqualTo(0.0);
+            ResponseEntity<?> response = controller.getRevenueByProvider(99);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = (Map<String, Object>) response.getBody();
+            assertThat(body.get("providerRevenue")).isEqualTo(0.0);
         }
 
         @Test
-        @DisplayName("returns 0.0 when revenue is explicitly zero")
-        void zeroRevenue_returnsZero() {
-            when(paymentRepository.calculateRevenueByProvider(10)).thenReturn(0.0);
+        @DisplayName("returns 200 OK with correct providerId in body")
+        void getRevenueByProvider_bodyContainsProviderId() {
+            when(paymentService.getRevenueByProvider(10)).thenReturn(12000.0);
 
-            assertThat(paymentService.getRevenueByProvider(10)).isEqualTo(0.0);
+            ResponseEntity<?> response = controller.getRevenueByProvider(10);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = (Map<String, Object>) response.getBody();
+            assertThat(body.get("providerId")).isEqualTo(10);
         }
     }
 
