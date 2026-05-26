@@ -800,6 +800,38 @@ class PaymentServiceImplTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // getRevenueByProvider()
+    // ═══════════════════════════════════════════════════════════════════════
+    @Nested
+    @DisplayName("getRevenueByProvider()")
+    class GetRevenueByProviderTests {
+
+        @Test
+        @DisplayName("returns revenue sum for given providerId")
+        void returnsRevenue() {
+            when(paymentRepository.calculateRevenueByProvider(10)).thenReturn(8500.0);
+
+            assertThat(paymentService.getRevenueByProvider(10)).isEqualTo(8500.0);
+        }
+
+        @Test
+        @DisplayName("returns 0.0 when repository returns null")
+        void nullResult_returnsZero() {
+            when(paymentRepository.calculateRevenueByProvider(99)).thenReturn(null);
+
+            assertThat(paymentService.getRevenueByProvider(99)).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("returns 0.0 when revenue is explicitly zero")
+        void zeroRevenue_returnsZero() {
+            when(paymentRepository.calculateRevenueByProvider(10)).thenReturn(0.0);
+
+            assertThat(paymentService.getRevenueByProvider(10)).isEqualTo(0.0);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // updatePaymentStatus()
     // ═══════════════════════════════════════════════════════════════════════
     @Nested

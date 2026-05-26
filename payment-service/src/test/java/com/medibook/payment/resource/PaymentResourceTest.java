@@ -207,6 +207,17 @@ class PaymentResourceTest {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).hasSize(1);
         }
+
+        @Test
+        @DisplayName("returns 200 OK with empty list for PENDING status")
+        void getByStatus_pending_returns200() {
+            when(paymentService.getPaymentsByStatus("PENDING")).thenReturn(List.of());
+
+            ResponseEntity<List<Payment>> response = controller.getByStatus("PENDING");
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).isEmpty();
+        }
     }
 
     @Nested
@@ -227,6 +238,38 @@ class PaymentResourceTest {
             assertThat(body).containsKey("totalRevenue");
             assertThat(body.get("totalRevenue")).isEqualTo(15000.0);
             assertThat(body.get("currency")).isEqualTo("INR");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // getRevenueByProvider()
+    // ═══════════════════════════════════════════════════════════════════════
+    @Nested
+    @DisplayName("getRevenueByProvider()")
+    class GetRevenueByProviderTests {
+
+        @Test
+        @DisplayName("returns revenue sum for given providerId")
+        void returnsRevenue() {
+            when(paymentRepository.calculateRevenueByProvider(10)).thenReturn(8500.0);
+
+            assertThat(paymentService.getRevenueByProvider(10)).isEqualTo(8500.0);
+        }
+
+        @Test
+        @DisplayName("returns 0.0 when repository returns null")
+        void nullResult_returnsZero() {
+            when(paymentRepository.calculateRevenueByProvider(99)).thenReturn(null);
+
+            assertThat(paymentService.getRevenueByProvider(99)).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("returns 0.0 when revenue is explicitly zero")
+        void zeroRevenue_returnsZero() {
+            when(paymentRepository.calculateRevenueByProvider(10)).thenReturn(0.0);
+
+            assertThat(paymentService.getRevenueByProvider(10)).isEqualTo(0.0);
         }
     }
 
@@ -273,5 +316,18 @@ class PaymentResourceTest {
             assertThat(body.get("message").toString()).contains("REFUNDED");
             assertThat(body.get("paymentId")).isEqualTo(1);
         }
+
+        @Test
+        @DisplayName("returns 200 OK with correct paymentId in body")
+        void updateStatus_bodyContainsPaymentId() {
+            ResponseEntity<?> response = controller.updateStatus(42, "SUCCESS");
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = (Map<String, Object>) response.getBody();
+            assertThat(body.get("paymentId")).isEqualTo(42);
+            assertThat(body.get("message").toString()).contains("SUCCESS");
+        }   
     }
 }
