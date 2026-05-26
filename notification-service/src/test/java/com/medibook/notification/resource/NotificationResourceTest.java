@@ -1,7 +1,10 @@
 package com.medibook.notification.resource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medibook.notification.client.UserClient;
+import com.medibook.notification.dto.BroadcastRequest;
 import com.medibook.notification.dto.NotificationRequest;
+import com.medibook.notification.dto.UserDto;
 import com.medibook.notification.entity.Notification;
 import com.medibook.notification.exception.BadRequestException;
 import com.medibook.notification.exception.GlobalExceptionHandler;
@@ -37,6 +40,9 @@ class NotificationResourceTest {
 
     @Mock
     private NotificationService notificationService;
+
+    @Mock
+    private UserClient userClient;                  // ← ADDED
 
     @InjectMocks
     private NotificationResource notificationResource;
@@ -445,6 +451,92 @@ class NotificationResourceTest {
             mockMvc.perform(get("/notifications/all"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(0)));
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // POST /notifications/broadcast       ← ADDED
+    // ─────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("POST /notifications/broadcast")
+    class BroadcastEndpointTests {
+
+        @Test
+        @DisplayName("should return 200 when broadcast is successful")
+        void broadcast_validRequest_returns200() throws Exception {
+            UserDto user1 = new UserDto();
+            user1.setUserId(1);
+            UserDto user2 = new UserDto();
+            user2.setUserId(2);
+
+            when(userClient.getAllUsers()).thenReturn(Arrays.asList(user1, user2));
+            doNothing().when(notificationService).sendBulk(anyList(), anyString(), anyString());
+
+            BroadcastRequest request = new BroadcastRequest();
+            request.setTitle("System Alert");
+            request.setMessage("Maintenance at midnight.");
+
+            mockMvc.perform(post("/notifications/broadcast")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk());
+
+            verify(notificationService).sendBulk(
+                    anyList(),
+                    eq("System Alert"),
+                    eq("Maintenance at midnight.")
+            );
+        }
+
+        @Test
+        @DisplayName("should call sendBulk with all user IDs")
+        void broadcast_callsSendBulkWithAllIds() throws Exception {
+            UserDto user1 = new UserDto();
+            user1.setUserId(10);
+            UserDto user2 = new UserDto();
+            user2.setUserId(20);
+            UserDto user3 = new UserDto();
+            user3.setUserId(30);
+
+            when(userClient.getAllUsers()).thenReturn(Arrays.asList(user1, user2, user3));
+            doNothing().when(notificationService).sendBulk(anyList(), anyString(), anyString());
+
+            BroadcastRequest request = new BroadcastRequest();
+            request.setTitle("Update");
+            request.setMessage("New features released.");
+
+            mockMvc.perform(post("/notifications/broadcast")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk());
+
+            verify(notificationService).sendBulk(
+                    Arrays.asList(10, 20, 30),
+                    "Update",
+                    "New features released."
+            );
+        }
+
+        @Test
+        @DisplayName("should handle empty user list gracefully")
+        void broadcast_emptyUserList_returns200() throws Exception {
+            when(userClient.getAllUsers()).thenReturn(Collections.emptyList());
+            doNothing().when(notificationService).sendBulk(anyList(), anyString(), anyString());
+
+            BroadcastRequest request = new BroadcastRequest();
+            request.setTitle("Alert");
+            request.setMessage("No users yet.");
+
+            mockMvc.perform(post("/notifications/broadcast")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk());
+
+            verify(notificationService).sendBulk(
+                    Collections.emptyList(),
+                    "Alert",
+                    "No users yet."
+            );
         }
     }
 }
