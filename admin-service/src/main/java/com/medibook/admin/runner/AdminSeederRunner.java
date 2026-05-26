@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
  * don't already exist.
  *
  * This means:
- *  - harshalchoudhary340@gmail.com / #Harshal@123  → seeded as Admin
+ *  - Shivam Mishra340@gmail.com / #Shivam@123  → seeded as Admin
  *  - adityalandge64@gmail.com       / #Harsh@123   → seeded as Admin
  *
  * Both can then log in via the existing  POST /auth/login  endpoint

@@ -14,6 +14,8 @@ import com.medibook.review.exception.DuplicateResourceException;
 import com.medibook.review.exception.ResourceNotFoundException;
 import com.medibook.review.repository.ReviewRepository;
 import com.medibook.review.service.ReviewService;
+import com.medibook.review.client.NotificationClient;
+import com.medibook.review.dto.request.NotificationRequest;
 
 @Service
 public class ReviewServiceImpl implements ReviewService {
@@ -21,13 +23,15 @@ public class ReviewServiceImpl implements ReviewService {
     private ReviewRepository reviewRepository;
     private AppointmentClient appointmentClient;
     private ProviderClient providerClient;
+    private final NotificationClient notificationClient;
 
     public ReviewServiceImpl(ReviewRepository reviewRepository,
                              AppointmentClient appointmentClient,
-                             ProviderClient providerClient) {
+                             ProviderClient providerClient, NotificationClient notificationClient) {
         this.reviewRepository  = reviewRepository;
         this.appointmentClient = appointmentClient;
         this.providerClient    = providerClient;
+        this.notificationClient = notificationClient;
     }
 
     @Override
@@ -73,8 +77,25 @@ public class ReviewServiceImpl implements ReviewService {
 
         Review saved = reviewRepository.save(review);
         updateDoctorRating(request.getProviderId());
+        sendNotification(request.getProviderId(), "New Review Received",
+            "A patient rated you " + request.getRating() + "★ stars.");
         return saved;
     }
+
+    private void sendNotification(int recipientId, String title, String msg) {
+        try {
+            NotificationRequest req = new NotificationRequest();
+            req.setRecipientId(recipientId);
+            req.setType("ANNOUNCEMENT");
+            req.setTitle(title);
+            req.setMessage(msg);
+            req.setChannel("APP");
+            notificationClient.send(req);
+        } catch (Exception e) {
+            System.err.println("[ReviewService] Notification failed: " + e.getMessage());
+        }
+    }
+    
 
     @Override
     public List<Review> getReviewsByProvider(int providerId) {
@@ -115,6 +136,8 @@ public class ReviewServiceImpl implements ReviewService {
         int providerId = review.getProviderId();
         reviewRepository.deleteById(reviewId);
         updateDoctorRating(providerId);
+        sendNotification(review.getPatientId(), "Review Removed",
+            "Your review has been deleted.");
     }
 
     @Override

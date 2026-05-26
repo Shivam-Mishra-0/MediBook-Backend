@@ -18,7 +18,7 @@ import java.util.Map;
  *
  * To call any endpoint:
  *   1. Login via POST http://localhost:8080/auth/login
- *      (using harshalchoudhary340@gmail.com or adityalandge64@gmail.com)
+ *      (using Shivam Mishra340@gmail.com or adityalandge64@gmail.com)
  *   2. Copy the returned token
  *   3. Add header: Authorization: Bearer <token>
  *   4. Call any /admin/** endpoint through the API Gateway (port 8080)

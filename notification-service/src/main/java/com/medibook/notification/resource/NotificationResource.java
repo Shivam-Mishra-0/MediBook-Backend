@@ -9,6 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.medibook.notification.dto.BroadcastRequest;
+import com.medibook.notification.dto.UserDto;
+import com.medibook.notification.client.UserClient;
+import java.util.stream.Collectors;
 
 import java.util.List;
 import java.util.Map;
@@ -19,6 +23,9 @@ public class NotificationResource {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private UserClient userClient;
 
     @PostMapping("/send")
     public ResponseEntity<Notification> send(
@@ -98,6 +105,19 @@ public class NotificationResource {
         ));
     }
 
+    
+    @PostMapping("/broadcast")
+    public ResponseEntity<Void> broadcast(@RequestBody BroadcastRequest request) {
+        // fetch all user IDs via UserClient
+        List<Integer> allIds = userClient.getAllUsers()
+            .stream()
+            .map(UserDto::getUserId)
+            .collect(Collectors.toList());
+    
+        notificationService.sendBulk(allIds, request.getTitle(), request.getMessage());
+        return ResponseEntity.ok().build();
+    }
+    
     @GetMapping("/all")
     public ResponseEntity<List<Notification>> getAll() {
 

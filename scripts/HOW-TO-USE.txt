@@ -45,12 +45,12 @@ This means: "go one folder UP from where the scripts folder is."
 If your scripts folder is INSIDE the project root, this works automatically.
 
 If it doesn't work, replace it with your actual path:
-  set ROOT=C:\Users\Harshal\Desktop\MediBook-Microservices-feature-admin-server
+  set ROOT=C:\Users\Shivam\Desktop\MediBook-Microservices-feature-admin-server
 
 Same for start-all.ps1 — find this line:
   $ROOT = Split-Path -Parent $PSScriptRoot
 And replace with:
-  $ROOT = "C:\Users\Harshal\Desktop\MediBook-Microservices-feature-admin-server"
+  $ROOT = "C:\Users\Shivam\Desktop\MediBook-Microservices-feature-admin-server"
 
 ==========================================================================
 STEP 3 — ALLOW POWERSHELL SCRIPTS TO RUN (ONE TIME SETUP)
