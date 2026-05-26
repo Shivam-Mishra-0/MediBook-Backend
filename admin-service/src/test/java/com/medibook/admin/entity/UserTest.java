@@ -53,7 +53,7 @@ class UserTest {
     @DisplayName("AllArgsConstructor sets all fields")
     void allArgsConstructor() {
         LocalDateTime now = LocalDateTime.now();
-        User user = new User(5, "Bob", "bob@test.com", "hash", "0000", "Patient", null, true, now, null);
+        User user = new User(5, "Bob", "bob@test.com", "hash", "0000", "Patient", null, true, false, now, null);
         assertThat(user.getUserId()).isEqualTo(5);
         assertThat(user.getFullName()).isEqualTo("Bob");
     }
