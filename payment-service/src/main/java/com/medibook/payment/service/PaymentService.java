@@ -160,6 +160,7 @@ public interface PaymentService {
      * UI: Admin dashboard → Revenue card
      */
     double getTotalRevenue();
+    double getRevenueByProvider(int providerId);
 
     /*
      * Update payment status manually.

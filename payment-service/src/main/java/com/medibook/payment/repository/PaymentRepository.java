@@ -90,6 +90,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
     @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.status = 'SUCCESS'")
     Double calculateTotalRevenue();
 
+     @Query(value = "SELECT SUM(p.amount) FROM payments p " +
+               "JOIN appointments a ON p.appointment_id = a.appointment_id " +
+               "WHERE a.provider_id = :providerId AND p.status = 'SUCCESS'",
+               nativeQuery = true)
+      Double calculateRevenueByProvider(@Param("providerId") int providerId);
+
     /*
      * Calculate total revenue from a specific patient.
      * Used in patient payment summary.

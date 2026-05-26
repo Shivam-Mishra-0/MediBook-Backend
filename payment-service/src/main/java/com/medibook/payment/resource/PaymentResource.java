@@ -290,6 +290,16 @@ public class PaymentResource {
         }
     }
 
+    @GetMapping("/revenue/provider/{providerId}")
+public ResponseEntity<?> getRevenueByProvider(@PathVariable int providerId) {
+    double revenue = paymentService.getRevenueByProvider(providerId);
+    return ResponseEntity.ok(Map.of(
+        "providerId", providerId,
+        "providerRevenue", revenue,
+        "currency", "INR"
+    ));
+}
+
     /*
      * Update payment status manually.
      *

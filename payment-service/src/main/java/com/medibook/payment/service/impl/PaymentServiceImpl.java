@@ -301,6 +301,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    public double getRevenueByProvider(int providerId) {
+        Double total = paymentRepository.calculateRevenueByProvider(providerId);
+        return total != null ? total : 0.0;
+    }
+
+    @Override
     public void updatePaymentStatus(int paymentId, String status) {
         if (status == null || !ALLOWED_STATUSES.contains(status)) {
             throw new BadRequestException("Invalid status.");
