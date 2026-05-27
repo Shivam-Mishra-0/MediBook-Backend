@@ -116,7 +116,8 @@ public class PaymentServiceImpl implements PaymentService {
             refundRequest.put("amount", (int)(amount * 100));
             Refund refund = client.payments.refund(razorpayPaymentId, refundRequest);
             String refundStatus = refund.get("status");
-            return refundStatus.equals("processed") || refundStatus.equals("initiated");
+            System.out.println("[Refund] Razorpay refund status: " + refundStatus);
+            return refundStatus.equals("processed") || refundStatus.equals("initiated") || refundStatus.equals("created");
         } catch (RazorpayException e) {
             throw new BadRequestException("Razorpay refund failed: " + e.getMessage());
         }
