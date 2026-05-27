@@ -61,7 +61,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         "/auth/reset-password",
         "/auth/admin/register",
         "/auth/google/complete",
-        "/auth/refresh"
+        "/auth/refresh",
+        "/swagger-ui.html",
+        "/swagger-ui/index.html",
+        "/v3/api-docs",
+        "/webjars/swagger-ui/index.html"
     );
 
     private static final List<String> PUBLIC_PREFIXES = List.of(
