@@ -95,3 +95,28 @@ logging:
   level:
     org.springframework.cloud.gateway: INFO
 
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: auth-service
+        url: /auth/v3/api-docs
+      - name: provider-service
+        url: /providers/v3/api-docs
+      - name: appointment-service
+        url: /appointments/v3/api-docs
+      - name: payment-service
+        url: /payments/v3/api-docs
+      - name: record-service
+        url: /records/v3/api-docs
+      - name: review-service
+        url: /reviews/v3/api-docs
+      - name: notification-service
+        url: /notifications/v3/api-docs
+      - name: admin-service
+        url: /admin/v3/api-docs
+      - name: schedule-service
+        url: /slots/v3/api-docs
+  api-docs:
+    enabled: true
