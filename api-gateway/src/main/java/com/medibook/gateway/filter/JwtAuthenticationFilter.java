@@ -71,6 +71,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final List<String> PUBLIC_PREFIXES = List.of(
         "/oauth2/",
         "/login/oauth2/",
+        "/swagger-ui/",
+        "/webjars/",
+        "/v3/api-docs/",
+        "/auth/v3/",
+        "/admin/v3/",
+        "/providers/v3/",
+        "/payments/v3/",
+        "/appointments/v3/",
+        "/records/v3/",
+        "/reviews/v3/",
+        "/notifications/v3/",
+        "/slots/v3/",
         "/providers/",       // guests can browse doctors
         "/slots/available/"  // guests can view available slots
     );
