@@ -70,7 +70,7 @@ public class PaymentServiceImpl implements PaymentService {
         return razorpayGateway(request);
     }
 
-    private boolean callRefundGateway(String razorpayPaymentId) {
+    private boolean callRefundGateway(String razorpayPaymentId, double amount) {
         if (razorpayPaymentId == null
                 || razorpayPaymentId.startsWith("TXN_")
                 || !razorpayPaymentId.startsWith("pay_")) {
@@ -78,7 +78,7 @@ public class PaymentServiceImpl implements PaymentService {
                     + ") — processing as simulated refund.");
             return true;
         }
-        return razorpayRefund(razorpayPaymentId);
+        return razorpayRefund(razorpayPaymentId, amount);
     }
 
     private GatewayResponse razorpayGateway(PaymentRequest request) {
@@ -109,10 +109,11 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-    private boolean razorpayRefund(String razorpayPaymentId) {
+    private boolean razorpayRefund(String razorpayPaymentId, double amount) {
         try {
             RazorpayClient client = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
             JSONObject refundRequest = new JSONObject();
+            refundRequest.put("amount", (int)(amount * 100));
             Refund refund = client.payments.refund(razorpayPaymentId, refundRequest);
             String refundStatus = refund.get("status");
             return refundStatus.equals("processed") || refundStatus.equals("initiated");
@@ -273,7 +274,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (!payment.getStatus().equals("SUCCESS"))
             throw new BadRequestException("Refund can only be initiated for successful payments. Status: " + payment.getStatus());
 
-        boolean refundSuccess = callRefundGateway(payment.getRazorpayPaymentId());
+        boolean refundSuccess = callRefundGateway(payment.getRazorpayPaymentId(), payment.getAmount());
 
         if (refundSuccess) {
             payment.setStatus("REFUNDED");
