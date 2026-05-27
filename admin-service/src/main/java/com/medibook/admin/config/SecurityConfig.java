@@ -44,6 +44,7 @@ public class SecurityConfig {
                 ).permitAll()
 
                 // All /admin/** endpoints require a valid JWT with role Admin
+                .requestMatchers("/admin/v3/api-docs/**", "/admin/v3/api-docs").permitAll()
                 .requestMatchers("/admin/**").hasAuthority("Admin")
 
                 .anyRequest().authenticated()
